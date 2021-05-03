@@ -1,39 +1,20 @@
 from bs4 import BeautifulSoup
-from finvizfinance.quote import finvizfinance, Statements
 import requests
 import yfinance as yf
+from Financials import Financials
+from util import headers, numberCovert
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) \
-            AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36'}
-
-def numberCovert(num):
-    """covert number(str) to number(float)
-    Args:
-        num(str): number of string
-    Return:
-        num(float): number of string
-    """
-    if num == '-':
-        return None
-    elif num[-1] == '%':
-        return float(num[:-1]) / 100
-    elif num[-1] == 'B':
-        return float(num[:-1]) * 1000000000
-    elif num[-1] == 'M':
-        return float(num[:-1]) * 1000000
-    elif num[-1] == 'K':
-        return float(num[:-1]) * 1000
-    else:
-        return float(''.join(num.split(',')))
-
 MARKET_RETURN = 0.0851
 
 class WACC:
-    def __init__(self, ticker):
+    def __init__(self, ticker, stock_fundament, income_statement, balance_sheet_statement):
         self._ticker = ticker
+        self._stock_fundament = stock_fundament
+        self._income_statement = income_statement
+        self._balance_sheet_statement = balance_sheet_statement
         self.get_inputs()
     
     def get_inputs(self):
@@ -53,18 +34,12 @@ class WACC:
         self._risk_free = stock.info['previousClose'] / 100
 
         # get statements data
-        stock = finvizfinance(self._ticker)
-        stock_fundament = stock.TickerFundament()
-        self._beta = numberCovert(stock_fundament['Beta'])
-        self._market_cap = numberCovert(stock_fundament['Market Cap'])
+        self._beta = numberCovert(self._stock_fundament['Beta'])
+        self._market_cap = numberCovert(self._stock_fundament['Market Cap'])
 
-        statements = Statements()
-        income_statement = statements.getStatements(self._ticker, statement="I")
-        statements = Statements()
-        balance_sheet_statement = statements.getStatements(self._ticker, statement="B")
-        self._tax_provision = numberCovert(income_statement.loc['Provision for Income Taxes'][1])
-        self._pre_tax_income = numberCovert(income_statement.loc['Net Income Before Taxes'][1])
-        self._total_debt = numberCovert(balance_sheet_statement.loc['Total Debt'][1])
+        self._tax_provision = numberCovert(self._income_statement.loc['Provision for Income Taxes'][1])
+        self._pre_tax_income = numberCovert(self._income_statement.loc['Net Income Before Taxes'][1])
+        self._total_debt = numberCovert(self._balance_sheet_statement.loc['Total Debt'][0])
     
     def calculate_wacc(self):
         # cost of debt
@@ -96,7 +71,12 @@ class WACC:
         return data
 
 if __name__ == '__main__':
-    wacc_calculator = WACC('AAPL')
+    ticker = 'AAPL'
+    financials = Financials(ticker)
+    wacc_calculator = WACC('AAPL',
+                           financials.stock_fundament,
+                           financials.income_statement,
+                           financials.balance_sheet_statement)
     wacc = wacc_calculator.calculate_wacc()
     data = wacc_calculator.record_data()
     print(data)
